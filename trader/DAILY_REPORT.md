@@ -26,7 +26,9 @@ quantity, reward/risk and planned loss. It also includes BLOCK reasons and
 explicitly marks missing historical evidence and catalysts. PASS is a
 **review label, not authorization to execute**.
 
-**Limits:** scanner raw hits may not contain the entry/stop/target/setup/closed-bar
-fields expected by this report; a validated mapping/strategy confirmation step
-is still needed. Session statistics are supplied by the operator, not yet
+**Scanner compatibility:** the report accepts the scanner's `setups` list. For
+ORB hits it maps the reported breakout price to entry and opening-range low to
+stop. It does **not** invent a profit target, so raw ORB hits remain BLOCK until
+a separately validated target is supplied. Daily close-only hits likewise remain
+BLOCK without a complete, confirmed trade plan. Session statistics are supplied by the operator, not yet
 computed from a durable trading ledger. Broker integration is absent.
