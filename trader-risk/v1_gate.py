@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """Fail-closed V1 risk overlay. Paper trading only."""
 import argparse, datetime, hashlib, json, os
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    ZoneInfo = None
 
 
 def load(path, default=None):
@@ -50,8 +46,7 @@ def evaluate(ticket, config, stats=None, now=None):
     if int(stats.get("consecutive_losses",0)) >= int(config.get("max_consecutive_losses",3)): reasons.append("consecutive-loss kill switch active")
     if stats.get("kill_switch"): reasons.append("manual kill switch active")
     if stats.get("cooldown_active"): reasons.append("cooldown active")
-    now = now or datetime.datetime.now(datetime.timezone.utc)
-    if now.tzinfo is not None and ZoneInfo is not None: now = now.astimezone(ZoneInfo("America/New_York"))
+    now = now or datetime.datetime.now()
     hhmm = now.strftime("%H:%M")
     if hhmm < config.get("no_entries_before","09:35") or hhmm > config.get("no_entries_after","15:30"): reasons.append("outside entry window")
     return {"verdict":"BLOCK" if reasons else "PASS", "reasons":reasons, "paper_only":True, "ticket_fingerprint":fingerprint(ticket)}
