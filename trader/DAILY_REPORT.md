@@ -52,3 +52,18 @@ samples are displayed but not promoted. No backtest is run automatically and
 no out-of-sample provenance is verified. The confidence interval is a simple
 normal approximation, not a guarantee. Historical evidence does not override
 risk BLOCK, and does not authorize an order.
+
+## Reconciled ledger required for command-line Risk-PASS
+
+The CLI now requires `--ledger completed_paper.jsonl --reconciliation reconciliation.json`
+to issue a PASS. `--stats` alone is **not** sufficient. Example reconciliation:
+
+```json
+{"reconciled":true,"manual_kill_switch":false,"cooldown_active":false,"open_positions":0,"pending_orders":0}
+```
+
+All ledger timestamps must have timezone offsets and the operator must independently
+confirm that the ledger is complete. Without reconciliation, the CLI displays BLOCK.
+The Python `report(...)` API retains legacy behavior for existing offline tests;
+new integrations **must** pass `require_ledger=True`. This is not a broker
+reconciliation or a live trading authorization.
