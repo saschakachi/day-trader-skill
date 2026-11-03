@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Fail-closed V1 risk overlay. Paper trading only."""
-import argparse, datetime, json, os
+import argparse, datetime, hashlib, json, os
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None
 
 
 def load(path, default=None):
@@ -8,17 +12,24 @@ def load(path, default=None):
     with open(path, encoding="utf-8") as f: return json.load(f)
 
 
+def fingerprint(ticket):
+    payload=json.dumps(ticket,sort_keys=True,separators=(",",":"),ensure_ascii=True).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 def evaluate(ticket, config, stats=None, now=None):
     stats = stats or {}
     reasons = []
-    if config.get("mode") != "paper" or not config.get("paper") or config.get("live_trading_enabled"):
+    if config.get("mode") != "paper" or config.get("paper") is not True or config.get("live_trading_enabled") is not False:
         reasons.append("V1 requires paper mode; live trading must be disabled")
-    if config.get("risk_gate_bypass"):
-        reasons.append("risk gate bypass must be disabled")
+    if config.get("risk_gate_bypass") is not False:
+        reasons.append("risk gate bypass must be explicitly disabled")
+    if config.get("allow_short") is not False or config.get("allow_margin") is not False or config.get("allow_options") is not False:
+        reasons.append("shorts, margin and options must be disabled")
     if str(ticket.get("side", "buy")).lower() != "buy": reasons.append("V1 is long-only")
     setup = ticket.get("setup") or (ticket.get("plan") or {}).get("setup")
     if setup not in config.get("setups", []): reasons.append("setup is not approved for V1")
-    if config.get("closed_bars_only") and ticket.get("bar_closed") is not True: reasons.append("trigger bar is not confirmed closed")
+    if config.get("closed_bars_only") is not True or ticket.get("bar_closed") is not True: reasons.append("trigger bar is not confirmed closed")
     entry, stop, target = [ticket.get(k) for k in ("entry", "stop", "target")]
     try:
         entry, stop, target = float(entry), float(stop), float(target)
@@ -39,10 +50,11 @@ def evaluate(ticket, config, stats=None, now=None):
     if int(stats.get("consecutive_losses",0)) >= int(config.get("max_consecutive_losses",3)): reasons.append("consecutive-loss kill switch active")
     if stats.get("kill_switch"): reasons.append("manual kill switch active")
     if stats.get("cooldown_active"): reasons.append("cooldown active")
-    now = now or datetime.datetime.now()
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    if now.tzinfo is not None and ZoneInfo is not None: now = now.astimezone(ZoneInfo("America/New_York"))
     hhmm = now.strftime("%H:%M")
     if hhmm < config.get("no_entries_before","09:35") or hhmm > config.get("no_entries_after","15:30"): reasons.append("outside entry window")
-    return {"verdict":"BLOCK" if reasons else "PASS", "reasons":reasons, "paper_only":True}
+    return {"verdict":"BLOCK" if reasons else "PASS", "reasons":reasons, "paper_only":True, "ticket_fingerprint":fingerprint(ticket)}
 
 
 def main():
