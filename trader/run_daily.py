@@ -33,6 +33,17 @@ def build_report(source, config, ledger, reconciliation, now):
     result["market_data_verified"] = False
     return result
 
+def preflight(config, ledger, reconciliation, now):
+    if (config.get('mode') != 'paper' or config.get('paper') is not True
+            or config.get('live_trading_enabled') is not False
+            or config.get('risk_gate_bypass') is not False
+            or config.get('allow_short') is not False
+            or config.get('allow_margin') is not False
+            or config.get('allow_options') is not False):
+        raise ValueError('unsafe paper configuration')
+    daily = load_daily()
+    return daily.ledger_risk.snapshot(ledger, now, **reconciliation)
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run ORB scanner and read-only paper report")
     parser.add_argument("--symbols", required=True, help="Comma-separated tickers")
@@ -40,6 +51,7 @@ def main(argv=None):
     parser.add_argument("--reconciliation", required=True, help="Operator reconciliation JSON")
     parser.add_argument("--config", default="trader/config.json")
     parser.add_argument("--max-confirm", type=int, default=0, help="0 checks all scanner candidates")
+    parser.add_argument("--check-only", action="store_true", help="Validate inputs without network")
     args = parser.parse_args(argv)
     if args.max_confirm != 0:
         parser.error("full confirmation is required; use --max-confirm 0")
@@ -48,16 +60,18 @@ def main(argv=None):
         parser.error("symbols must be a comma-separated list of tickers")
     with open(args.config, encoding="utf-8") as f:
         config = json.load(f)
-    if config.get("mode") != "paper" or config.get("live_trading_enabled") is not False:
-        parser.error("paper-only configuration required")
     with open(args.ledger, encoding="utf-8") as f:
         ledger = [json.loads(line) for line in f if line.strip()]
     with open(args.reconciliation, encoding="utf-8") as f:
         reconciliation = json.load(f)
     # Check reconciliation before making any network request.
     now = datetime.datetime.now(datetime.timezone.utc)
-    daily = load_daily()
-    daily.ledger_risk.snapshot(ledger, now, **reconciliation)
+    stats = preflight(config, ledger, reconciliation, now)
+    if args.check_only:
+        print(json.dumps({"mode": "paper", "preflight": "PASS",
+                          "network_used": False, "execution": "disabled",
+                          "trades_today": stats["trades_today"]}, indent=2))
+        return 0
     with tempfile.TemporaryDirectory() as folder:
         out = os.path.join(folder, "scan.json")
         command = [sys.executable, os.path.join(ROOT, "trader-scanner", "scan.py"),
