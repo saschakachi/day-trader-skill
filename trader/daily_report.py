@@ -24,7 +24,7 @@ def finite(value):
         raise ValueError("price must be finite")
     return result
 
-def normalize_scanner_hit(hit):
+def normalize_scanner_hit(hit, config=None):
     """Translate scanner schema conservatively; never invent a target or closed-bar flag."""
     if "setup" in hit:
         return hit
@@ -36,6 +36,14 @@ def normalize_scanner_hit(hit):
         result["stop"] = hit.get("or_low")
         # ORB scanner only confirms a completed breakout bar, not a target.
         result["bar_closed"] = bool(hit.get("at") and hit.get("bar_start"))
+        # Opt-in mechanical 2R plan, not an evidence-based price forecast.
+        if config and config.get("orb_target_policy") == "fixed_2r":
+            try:
+                entry, stop = finite(result["entry"]), finite(result["stop"])
+                if 0 < stop < entry:
+                    result["target"] = round(entry + 2 * (entry - stop), 4)
+            except (TypeError, ValueError, KeyError):
+                pass
     return result
 
 
@@ -45,7 +53,7 @@ def report(hits, config, stats, now, evidence=None):
     evidence = evidence or {}
     candidates = []
     for raw_hit in hits:
-        hit = normalize_scanner_hit(raw_hit)
+        hit = normalize_scanner_hit(raw_hit, config)
         symbol = str(hit.get("symbol") or hit.get("ticker") or "").upper()
         item = {"ticker": symbol, "setup": hit.get("setup"), "status": "BLOCK",
                 "reasons": [], "approval_required": True}
