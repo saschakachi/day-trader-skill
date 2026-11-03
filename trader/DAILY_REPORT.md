@@ -67,3 +67,23 @@ confirm that the ledger is complete. Without reconciliation, the CLI displays BL
 The Python `report(...)` API retains legacy behavior for existing offline tests;
 new integrations **must** pass `require_ledger=True`. This is not a broker
 reconciliation or a live trading authorization.
+
+## Mandatory market scan preflight in the CLI
+
+The command-line daily report now also checks the **scanner metadata** before
+allowing Risk-PASS. Input must be a fresh, complete `trader-scanner` ORB JSON
+output with the declared Yahoo source; stale, partial, offline-fixture and
+unverified-source scans are BLOCK. The earlier example `hits.json` is a
+synthetic example and will be BLOCK when used with the CLI.
+
+Example (only when market is open and a legitimate operator reconciliation exists):
+
+```sh
+python trader-scanner/scan.py orb --symbols AAPL,MSFT --out trader/watchlist.json
+python trader/daily_report.py --hits trader/watchlist.json --ledger trader/journal.jsonl --reconciliation reconciliation.json
+```
+
+**Limitations:** the preflight checks self-reported metadata, not independent
+market-price authenticity. The scanner and report remain separate commands.
+The Python report function retains its legacy test API; direct integrations
+must explicitly validate scanner provenance before passing candidates.

@@ -19,6 +19,7 @@ risk = load_module("report_risk", "trader-risk/v1_gate.py")
 sizing = load_module("report_sizing", "trader-budget/v1_size.py")
 evidence_engine = load_module("report_evidence", "trader-timemachine/v1_evidence.py")
 ledger_risk = load_module("report_ledger_risk", "trader/risk_from_ledger.py")
+scan_validator = load_module("report_scan_validator", "trader/scan_validation.py")
 
 def finite(value):
     result = float(value)
@@ -65,7 +66,7 @@ def evidence_for(symbol, setup, evidence):
         return {"status": "invalid_evidence"}
 
 
-def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconciliation=None, require_ledger=False):
+def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconciliation=None, require_ledger=False, scan_reasons=None):
     if not isinstance(hits, list) or not isinstance(stats, dict):
         raise ValueError("hits must be a list and stats must be a dictionary")
     evidence = evidence or {}
@@ -97,7 +98,10 @@ def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconcilia
             ticket = {"ticker": symbol, "side": "buy", "setup": hit.get("setup"),
                       "bar_closed": hit.get("bar_closed") is True, "entry": entry,
                       "stop": stop, "target": target, "position_size": qty}
-            if verified_stats is None and require_ledger:
+            if scan_reasons:
+                decision = {"verdict": "BLOCK", "reasons": list(scan_reasons),
+                            "ticket_fingerprint": None}
+            elif verified_stats is None and require_ledger:
                 decision = {"verdict": "BLOCK", "reasons": [ledger_error],
                             "ticket_fingerprint": None}
             else:
@@ -157,7 +161,9 @@ def main():
         with open(args.evidence, encoding="utf-8") as f:
             evidence = json.load(f)
     now = datetime.datetime.fromisoformat(args.now) if args.now else datetime.datetime.now(datetime.timezone.utc)
-    print(json.dumps(report(hits, config, stats, now, evidence, ledger_rows, reconciliation, True), indent=2, sort_keys=True))
+    scan_reasons = scan_validator.validate(source, now)
+    print(json.dumps(report(hits, config, stats, now, evidence, ledger_rows,
+                            reconciliation, True, scan_reasons), indent=2, sort_keys=True))
 
 if __name__ == "__main__":
     main()
