@@ -47,6 +47,7 @@ def evaluate(ticket, config, stats=None, now=None):
     if stats.get("kill_switch"): reasons.append("manual kill switch active")
     if stats.get("cooldown_active"): reasons.append("cooldown active")
     now = now or datetime.datetime.now()
+    if now.weekday() >= 5: reasons.append("market closed on weekends")
     hhmm = now.strftime("%H:%M")
     if hhmm < config.get("no_entries_before","09:35") or hhmm > config.get("no_entries_after","15:30"): reasons.append("outside entry window")
     return {"verdict":"BLOCK" if reasons else "PASS", "reasons":reasons, "paper_only":True, "ticket_fingerprint":fingerprint(ticket)}
