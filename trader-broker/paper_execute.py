@@ -18,7 +18,8 @@ def validate_config(config):
 
 
 def execute(ticket, risk, approved, path="trader/paper_orders.json", config=None):
-    config = config or {"mode":"paper","paper":True,"live_trading_enabled":False,"risk_gate_bypass":False}
+    if config is None:
+        raise ValueError("explicit paper config required")
     validate_config(config)
     if risk.get("verdict") != "PASS" or risk.get("paper_only") is not True:
         raise ValueError("risk gate did not PASS for paper execution")
