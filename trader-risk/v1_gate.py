@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """Fail-closed V1 risk overlay. Paper trading only."""
 import argparse, datetime, hashlib, json, os
-from zoneinfo import ZoneInfo
+# Python 3.8-compatible US Eastern DST conversion for aware timestamps.
+def eastern_time(instant):
+    utc = instant.astimezone(datetime.timezone.utc)
+    year = utc.year
+    spring = nth_weekday(year, 3, 6, 2)
+    autumn = nth_weekday(year, 11, 6, 1)
+    start = datetime.datetime(year, 3, spring.day, 7, tzinfo=datetime.timezone.utc)
+    end = datetime.datetime(year, 11, autumn.day, 6, tzinfo=datetime.timezone.utc)
+    hours = -4 if start <= utc < end else -5
+    return utc.astimezone(datetime.timezone(datetime.timedelta(hours=hours)))
 
-NY = ZoneInfo('America/New_York')
 
 def nth_weekday(year, month, weekday, nth):
     first = datetime.date(year, month, 1)
@@ -100,9 +108,10 @@ def evaluate(ticket, config, stats=None, now=None):
     # Production uses timezone-aware UTC converted to New York, including DST.
     now = now if now is not None else datetime.datetime.now(datetime.timezone.utc)
     if now.tzinfo is not None:
-        now = now.astimezone(NY)
+        now = eastern_time(now)
     day = now.date()
-    if market_closed(day): reasons.append("NYSE closed on this date")
+    if day.weekday() >= 5: reasons.append("market closed on weekends")
+    elif market_closed(day): reasons.append("NYSE closed on this date")
     hhmm = now.strftime("%H:%M")
     cutoff = min(config.get("no_entries_after", "15:30"), "12:30") if early_close(day) else config.get("no_entries_after", "15:30")
     if hhmm < config.get("no_entries_before","09:35") or hhmm > cutoff: reasons.append("outside entry window")
