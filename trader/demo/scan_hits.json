@@ -1,0 +1,26 @@
+{
+  "hits": [
+    {
+      "symbol": "DEMO",
+      "setups": [
+        "orb"
+      ],
+      "price": 100,
+      "or_high": 99,
+      "or_low": 98,
+      "at": "09:50",
+      "bar_start": "09:45"
+    },
+    {
+      "symbol": "BLOCK",
+      "setups": [
+        "orb"
+      ],
+      "price": 100,
+      "or_high": 99,
+      "or_low": 101,
+      "at": "09:50",
+      "bar_start": "09:45"
+    }
+  ]
+}
