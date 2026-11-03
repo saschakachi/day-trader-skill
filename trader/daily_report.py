@@ -54,7 +54,7 @@ def evidence_for(symbol, setup, evidence):
     if not isinstance(rows, list):
         return {"status": "invalid_evidence"}
     if not rows:
-        return {"status": "insufficient_evidence", "sample_size": 0}
+        return {"status": "not_provided", "sample_size": 0}
     try:
         summary = evidence_engine.summarize(rows)
         if not all(math.isfinite(float(x["r"])) for x in rows):
