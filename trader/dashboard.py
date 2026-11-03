@@ -4,10 +4,15 @@ import argparse
 import html
 import json
 import os
+import importlib.util
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-from demo_run import run
+DEMO_PATH = os.path.join(os.path.dirname(__file__), 'demo_run.py')
+spec = importlib.util.spec_from_file_location('dashboard_demo_run', DEMO_PATH)
+demo_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(demo_module)
+run = demo_module.run
 
 HOST = "127.0.0.1"
 PORT = 8000
