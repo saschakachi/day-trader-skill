@@ -65,7 +65,7 @@ def evidence_for(symbol, setup, evidence):
         return {"status": "invalid_evidence"}
 
 
-def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconciliation=None):
+def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconciliation=None, require_ledger=False):
     if not isinstance(hits, list) or not isinstance(stats, dict):
         raise ValueError("hits must be a list and stats must be a dictionary")
     evidence = evidence or {}
@@ -97,11 +97,11 @@ def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconcilia
             ticket = {"ticker": symbol, "side": "buy", "setup": hit.get("setup"),
                       "bar_closed": hit.get("bar_closed") is True, "entry": entry,
                       "stop": stop, "target": target, "position_size": qty}
-            if verified_stats is None:
+            if verified_stats is None and require_ledger:
                 decision = {"verdict": "BLOCK", "reasons": [ledger_error],
                             "ticket_fingerprint": None}
             else:
-                decision = risk.evaluate(ticket, config, verified_stats, now)
+                decision = risk.evaluate(ticket, config, verified_stats if verified_stats is not None else stats, now)
             item.update({"entry": entry, "stop": stop, "target": target,
                          "position_size": qty, "max_planned_loss_usd": round(qty * (entry-stop), 2),
                          "reward_risk": round((target-entry)/(entry-stop), 3),
@@ -157,7 +157,7 @@ def main():
         with open(args.evidence, encoding="utf-8") as f:
             evidence = json.load(f)
     now = datetime.datetime.fromisoformat(args.now) if args.now else datetime.datetime.now(datetime.timezone.utc)
-    print(json.dumps(report(hits, config, stats, now, evidence, ledger_rows, reconciliation), indent=2, sort_keys=True))
+    print(json.dumps(report(hits, config, stats, now, evidence, ledger_rows, reconciliation, True), indent=2, sort_keys=True))
 
 if __name__ == "__main__":
     main()
