@@ -5,13 +5,13 @@ import unittest
 
 from _load import ROOT
 
-# v2, the day-trading pack: the eleven folders the reel's repo card shows
+# v2 skills plus V1 paper-assistant support directories.
 SKILLS = ["trader-scanner", "trader-news", "trader-entry", "trader-exit", "trader-timemachine",
           "trader-risk", "trader-budget", "trader-broker", "trader-alerts", "trader-analyst",
           "trader-pelosi"]
+SUPPORT = ["trader", "trader-journal", "trader-orchestrator"]
 ABOUT = ("11 Claude skills for day trading: scan thousands of charts, track breaking news, time every "
          "entry and exit, and replay every outcome before you risk a dollar.")
-# skills on the way to an order carry the safety block
 ORDER_PATH = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
               "trader-pelosi", "trader-risk", "trader-broker", "trader-alerts"]
 V1_ONLY = ["trader-copycat", "trader-screener", "trader-tax", "trader-rebalance"]
@@ -40,7 +40,7 @@ class Repo(unittest.TestCase):
 
     def test_root_matches_the_reel(self):
         root = sorted(d for d in os.listdir(ROOT) if not d.startswith(".git"))
-        self.assertEqual(root, sorted([".claude-plugin", "LICENSE", "README.md", "tests"] + SKILLS))
+        self.assertEqual(root, sorted([".claude-plugin", ".github", "LICENSE", "README.md", "tests"] + SKILLS + SUPPORT))
 
     def test_frontmatter_name_and_description(self):
         for s in SKILLS:
@@ -86,22 +86,21 @@ class Repo(unittest.TestCase):
             with open(path, encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
             rel = os.path.relpath(path, ROOT)
-            if not rel.startswith(os.path.join("tests", "fixtures")):  # fixtures are real data, kept as published
+            if not rel.startswith(os.path.join("tests", "fixtures")):
                 self.assertNotIn("\u2014", text, rel)
-            self.assertNotIn("jakeschincariol" + "@" + "gmail.com", text, rel)  # built, so this file passes too
+            self.assertNotIn("jakeschincariol" + "@" + "gmail.com", text, rel)
 
     def test_no_v1_only_skill_is_left_behind(self):
         for path in every_text_file():
             rel = os.path.relpath(path, ROOT)
             if rel.startswith("tests" + os.sep) or rel == "README.md":
-                continue  # the README points v1 users to the v1 commit
+                continue
             with open(path, encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
             for old in V1_ONLY:
                 self.assertNotIn(old, text, rel)
 
     def test_every_tool_runs_on_python_3_8(self):
-        # no 3.9+ only modules or syntax in the tools (the README promises 3.8)
         for s in SKILLS:
             folder = os.path.join(ROOT, s)
             for f in os.listdir(folder):
@@ -133,7 +132,3 @@ class Repo(unittest.TestCase):
             cfg = json.load(fh)
         self.assertIs(cfg["paper"], True)
         self.assertIs(cfg.get("allow_options", False), False)
-
-
-if __name__ == "__main__":
-    unittest.main()
