@@ -56,9 +56,9 @@ def evidence_for(symbol, setup, evidence):
     if not rows:
         return {"status": "not_provided", "sample_size": 0}
     try:
-        summary = evidence_engine.summarize(rows)
         if not all(math.isfinite(float(x["r"])) for x in rows):
             raise ValueError("non-finite R")
+        summary = evidence_engine.summarize(rows)
         return summary
     except (KeyError, TypeError, ValueError, OverflowError):
         return {"status": "invalid_evidence"}
