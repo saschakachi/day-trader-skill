@@ -17,6 +17,7 @@ def load_module(name, path):
 
 risk = load_module("report_risk", "trader-risk/v1_gate.py")
 sizing = load_module("report_sizing", "trader-budget/v1_size.py")
+evidence_engine = load_module("report_evidence", "trader-timemachine/v1_evidence.py")
 
 def finite(value):
     result = float(value)
@@ -45,6 +46,22 @@ def normalize_scanner_hit(hit, config=None):
             except (TypeError, ValueError, KeyError):
                 pass
     return result
+
+
+def evidence_for(symbol, setup, evidence):
+    """Evidence must match the specific ticker/setup; no cross-setup pooling."""
+    rows = evidence.get(symbol, {}).get(setup, []) if isinstance(evidence, dict) else []
+    if not isinstance(rows, list):
+        return {"status": "invalid_evidence"}
+    if not rows:
+        return {"status": "not_provided", "sample_size": 0}
+    try:
+        if not all(math.isfinite(float(x["r"])) for x in rows):
+            raise ValueError("non-finite R")
+        summary = evidence_engine.summarize(rows)
+        return summary
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"status": "invalid_evidence"}
 
 
 def report(hits, config, stats, now, evidence=None):
@@ -77,12 +94,19 @@ def report(hits, config, stats, now, evidence=None):
                          "reward_risk": round((target-entry)/(entry-stop), 3),
                          "status": decision["verdict"], "reasons": decision["reasons"],
                          "ticket_fingerprint": decision["ticket_fingerprint"],
-                         "historical_evidence": evidence.get(symbol, {"status": "not_provided"}),
+                         "historical_evidence": evidence_for(symbol, hit.get("setup"), evidence),
                          "catalyst": hit.get("catalyst") or "not_provided"})
         except (KeyError, ValueError, TypeError, ZeroDivisionError, OverflowError) as exc:
             item["reasons"].append(str(exc))
         candidates.append(item)
-    candidates.sort(key=lambda x: (x["status"] != "PASS", -x.get("reward_risk", 0), x["ticker"]))
+    # Verified samples rank above unverified ones; evidence is descriptive only.
+    def rank(item):
+        ev = item.get("historical_evidence") or {}
+        supported = ev.get("status") == "historical_evidence_only" and ev.get("sample_size", 0) >= 30
+        lower = ev.get("confidence_interval_95_avg_r", [0])[0] if supported else float("-inf")
+        return (item["status"] != "PASS", not supported, -lower,
+                -item.get("reward_risk", 0), item["ticker"])
+    candidates.sort(key=rank)
     return {"mode": "paper", "execution": "disabled", "as_of": now.isoformat(),
             "passed": sum(c["status"] == "PASS" for c in candidates),
             "candidates": candidates,

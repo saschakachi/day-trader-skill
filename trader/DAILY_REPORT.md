@@ -36,3 +36,19 @@ computed from a durable trading ledger. Broker integration is absent.
 ## Mechanical ORB paper target
 
 With `orb_target_policy: fixed_2r` in `trader/config.json`, a scanner ORB hit with a completed breakout bar and a valid opening-range low gets an illustrative **2R** target: `entry + 2 * (entry - stop)`. The existing risk gate still checks the ticket. This target is a rule-based planning assumption, **not** a forecast, proof of profitability, or permission to place an order. No broker order is sent. Incomplete bars or invalid prices remain BLOCK. The policy can be disabled by removing the setting.
+
+## Historical evidence (optional)
+
+Supply `--evidence evidence.json` with outcomes keyed by **ticker and setup**:
+
+```json
+{"DEMO":{"orb":[{"r":1.5,"mae_r":-0.4,"mfe_r":1.8,"outcome":"target_first"}]}}
+```
+
+The report summarizes supplied R-multiples (sample size, average/median R,
+win rate, approximate confidence interval, excursions and outcome counts).
+At least **30 observations** are required for evidence-based ranking; smaller
+samples are displayed but not promoted. No backtest is run automatically and
+no out-of-sample provenance is verified. The confidence interval is a simple
+normal approximation, not a guarantee. Historical evidence does not override
+risk BLOCK, and does not authorize an order.
