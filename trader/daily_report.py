@@ -18,6 +18,7 @@ def load_module(name, path):
 risk = load_module("report_risk", "trader-risk/v1_gate.py")
 sizing = load_module("report_sizing", "trader-budget/v1_size.py")
 evidence_engine = load_module("report_evidence", "trader-timemachine/v1_evidence.py")
+ledger_risk = load_module("report_ledger_risk", "trader/risk_from_ledger.py")
 
 def finite(value):
     result = float(value)
@@ -64,10 +65,18 @@ def evidence_for(symbol, setup, evidence):
         return {"status": "invalid_evidence"}
 
 
-def report(hits, config, stats, now, evidence=None):
+def report(hits, config, stats, now, evidence=None, ledger_rows=None, reconciliation=None, require_ledger=False):
     if not isinstance(hits, list) or not isinstance(stats, dict):
         raise ValueError("hits must be a list and stats must be a dictionary")
     evidence = evidence or {}
+    try:
+        if ledger_rows is None:
+            raise ValueError("reconciled paper ledger required")
+        verified_stats = ledger_risk.snapshot(ledger_rows, now, **(reconciliation or {}))
+        ledger_error = None
+    except (ValueError, KeyError, TypeError, OverflowError) as exc:
+        verified_stats = None
+        ledger_error = "ledger reconciliation failed: " + str(exc)
     candidates = []
     for raw_hit in hits:
         hit = normalize_scanner_hit(raw_hit, config)
@@ -88,7 +97,11 @@ def report(hits, config, stats, now, evidence=None):
             ticket = {"ticker": symbol, "side": "buy", "setup": hit.get("setup"),
                       "bar_closed": hit.get("bar_closed") is True, "entry": entry,
                       "stop": stop, "target": target, "position_size": qty}
-            decision = risk.evaluate(ticket, config, stats, now)
+            if verified_stats is None and require_ledger:
+                decision = {"verdict": "BLOCK", "reasons": [ledger_error],
+                            "ticket_fingerprint": None}
+            else:
+                decision = risk.evaluate(ticket, config, verified_stats if verified_stats is not None else stats, now)
             item.update({"entry": entry, "stop": stop, "target": target,
                          "position_size": qty, "max_planned_loss_usd": round(qty * (entry-stop), 2),
                          "reward_risk": round((target-entry)/(entry-stop), 3),
@@ -116,7 +129,9 @@ def main():
     p = argparse.ArgumentParser(description="Read-only paper candidate report")
     p.add_argument("--hits", required=True, help="JSON list or scanner JSON with hits")
     p.add_argument("--config", default="trader/config.json")
-    p.add_argument("--stats", required=True, help="Explicit session statistics JSON")
+    p.add_argument("--stats", help="Legacy statistics JSON (not trusted for PASS)")
+    p.add_argument("--ledger", help="Completed paper journal JSONL")
+    p.add_argument("--reconciliation", help="Operator reconciliation JSON")
     p.add_argument("--evidence", help="Optional per-symbol evidence JSON")
     p.add_argument("--now", help="ISO datetime; naive times interpreted as New York wall clock")
     args = p.parse_args()
@@ -125,14 +140,24 @@ def main():
     hits = source.get("hits", []) if isinstance(source, dict) else source
     with open(args.config, encoding="utf-8") as f:
         config = json.load(f)
-    with open(args.stats, encoding="utf-8") as f:
-        stats = json.load(f)
+    stats = {}
+    if args.stats:
+        with open(args.stats, encoding="utf-8") as f:
+            stats = json.load(f)
+    ledger_rows = None
+    reconciliation = None
+    if args.ledger:
+        with open(args.ledger, encoding="utf-8") as f:
+            ledger_rows = [json.loads(line) for line in f if line.strip()]
+    if args.reconciliation:
+        with open(args.reconciliation, encoding="utf-8") as f:
+            reconciliation = json.load(f)
     evidence = {}
     if args.evidence:
         with open(args.evidence, encoding="utf-8") as f:
             evidence = json.load(f)
     now = datetime.datetime.fromisoformat(args.now) if args.now else datetime.datetime.now(datetime.timezone.utc)
-    print(json.dumps(report(hits, config, stats, now, evidence), indent=2, sort_keys=True))
+    print(json.dumps(report(hits, config, stats, now, evidence, ledger_rows, reconciliation, True), indent=2, sort_keys=True))
 
 if __name__ == "__main__":
     main()
