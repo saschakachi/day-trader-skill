@@ -24,12 +24,28 @@ def finite(value):
         raise ValueError("price must be finite")
     return result
 
+def normalize_scanner_hit(hit):
+    """Translate scanner schema conservatively; never invent a target or closed-bar flag."""
+    if "setup" in hit:
+        return hit
+    setups = hit.get("setups") or []
+    result = dict(hit)
+    result["setup"] = setups[0] if len(setups) == 1 else None
+    if result["setup"] == "orb":
+        result["entry"] = hit.get("price")
+        result["stop"] = hit.get("or_low")
+        # ORB scanner only confirms a completed breakout bar, not a target.
+        result["bar_closed"] = bool(hit.get("at") and hit.get("bar_start"))
+    return result
+
+
 def report(hits, config, stats, now, evidence=None):
     if not isinstance(hits, list) or not isinstance(stats, dict):
         raise ValueError("hits must be a list and stats must be a dictionary")
     evidence = evidence or {}
     candidates = []
-    for hit in hits:
+    for raw_hit in hits:
+        hit = normalize_scanner_hit(raw_hit)
         symbol = str(hit.get("symbol") or hit.get("ticker") or "").upper()
         item = {"ticker": symbol, "setup": hit.get("setup"), "status": "BLOCK",
                 "reasons": [], "approval_required": True}
