@@ -1,6 +1,56 @@
 #!/usr/bin/env python3
 """Fail-closed V1 risk overlay. Paper trading only."""
 import argparse, datetime, hashlib, json, os
+from zoneinfo import ZoneInfo
+
+NY = ZoneInfo('America/New_York')
+
+def nth_weekday(year, month, weekday, nth):
+    first = datetime.date(year, month, 1)
+    return first + datetime.timedelta(days=(weekday - first.weekday()) % 7 + 7 * (nth - 1))
+
+def last_weekday(year, month, weekday):
+    if month == 12:
+        last = datetime.date(year + 1, 1, 1) - datetime.timedelta(days=1)
+    else:
+        last = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+    return last - datetime.timedelta(days=(last.weekday() - weekday) % 7)
+
+def observed(date):
+    if date.weekday() == 5:
+        return date - datetime.timedelta(days=1)
+    if date.weekday() == 6:
+        return date + datetime.timedelta(days=1)
+    return date
+
+def easter(year):
+    a = year % 19; b = year // 100; c = year % 100
+    d = b // 4; e = b % 4; f = (b + 8) // 25
+    g = (b - f + 1) // 3; h = (19*a + b - d - g + 15) % 30
+    i = c // 4; k = c % 4; l = (32 + 2*e + 2*i - h - k) % 7
+    m = (a + 11*h + 22*l) // 451
+    month = (h + l - 7*m + 114) // 31
+    day = ((h + l - 7*m + 114) % 31) + 1
+    return datetime.date(year, month, day)
+
+def market_closed(day):
+    y = day.year
+    holidays = set()
+    for yr in (y - 1, y, y + 1):
+        holidays.update((observed(datetime.date(yr, 1, 1)),
+                         observed(datetime.date(yr, 6, 19)),
+                         observed(datetime.date(yr, 7, 4)),
+                         observed(datetime.date(yr, 12, 25))))
+    holidays.update((nth_weekday(y, 1, 0, 3), nth_weekday(y, 2, 0, 3),
+                     easter(y) - datetime.timedelta(days=2),
+                     last_weekday(y, 5, 0), nth_weekday(y, 9, 0, 1),
+                     nth_weekday(y, 11, 3, 4)))
+    return day.weekday() >= 5 or day in holidays
+
+def early_close(day):
+    thanksgiving = nth_weekday(day.year, 11, 3, 4)
+    return day == thanksgiving + datetime.timedelta(days=1) or (day.month == 12 and day.day == 24) or (day.month == 7 and day.day == 3)
+
 
 
 def load(path, default=None):
@@ -46,10 +96,16 @@ def evaluate(ticket, config, stats=None, now=None):
     if int(stats.get("consecutive_losses",0)) >= int(config.get("max_consecutive_losses",3)): reasons.append("consecutive-loss kill switch active")
     if stats.get("kill_switch"): reasons.append("manual kill switch active")
     if stats.get("cooldown_active"): reasons.append("cooldown active")
-    now = now or datetime.datetime.now()
-    if now.weekday() >= 5: reasons.append("market closed on weekends")
+    # Naive injected test times are interpreted as New York wall clock.
+    # Production uses timezone-aware UTC converted to New York, including DST.
+    now = now if now is not None else datetime.datetime.now(datetime.timezone.utc)
+    if now.tzinfo is not None:
+        now = now.astimezone(NY)
+    day = now.date()
+    if market_closed(day): reasons.append("NYSE closed on this date")
     hhmm = now.strftime("%H:%M")
-    if hhmm < config.get("no_entries_before","09:35") or hhmm > config.get("no_entries_after","15:30"): reasons.append("outside entry window")
+    cutoff = min(config.get("no_entries_after", "15:30"), "12:30") if early_close(day) else config.get("no_entries_after", "15:30")
+    if hhmm < config.get("no_entries_before","09:35") or hhmm > cutoff: reasons.append("outside entry window")
     return {"verdict":"BLOCK" if reasons else "PASS", "reasons":reasons, "paper_only":True, "ticket_fingerprint":fingerprint(ticket)}
 
 
