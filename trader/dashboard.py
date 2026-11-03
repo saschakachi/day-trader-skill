@@ -16,7 +16,7 @@ def render(result=None, error=None):
     cards = ""
     if result:
         for item in result.get("candidates", []):
-            symbol = html.escape(str(item.get("symbol", "?")))
+            symbol = html.escape(str(item.get("ticker", "?")))
             status = html.escape(str(item.get("status", "BLOCK")))
             reasons = html.escape(", ".join(map(str, item.get("reasons", []))) or "Keine angegeben")
             cards += '<article class="candidate"><h3>%s <span>%s</span></h3><p>%s</p></article>' % (symbol, status, reasons)
