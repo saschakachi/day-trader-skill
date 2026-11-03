@@ -8,7 +8,7 @@
   "max_loss_per_trade_usd": 125,
   "max_daily_loss_pct": 1.5,
   "max_daily_loss_usd": 375,
-  "max_weekly_loss_pct": 4.0,
+  "max_weekly_loss_pct": 4,
   "max_consecutive_losses": 3,
   "max_trades_per_day": 4,
   "max_orders_per_day": 8,
@@ -28,7 +28,12 @@
   "allow_averaging_down": false,
   "risk_gate_bypass": false,
   "closed_bars_only": true,
-  "setups": ["orb", "20_day_breakout", "vwap_ma_reclaim"],
+  "setups": [
+    "orb",
+    "20_day_breakout",
+    "vwap_ma_reclaim"
+  ],
   "blocked": [],
-  "pdt_guard": false
+  "pdt_guard": false,
+  "orb_target_policy": "fixed_2r"
 }
