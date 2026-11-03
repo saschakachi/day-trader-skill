@@ -43,8 +43,7 @@ def summarize(rows, day):
             "daily_loss_usd": round(max(0, -sum(x[1] for x in today)), 2),
             "weekly_loss_usd": round(max(0, -sum(x[1] for x in week)), 2),
             "trades_today": len(today), "consecutive_losses": consecutive,
-            "kill_switch": False, "cooldown_active": False,
-            "warning": "No live positions, pending orders, manual kill switch or exchange timezone reconciled."}
+            "warning": "Not a risk-gate stats input: manual kill switch, cooldown, pending orders and exchange timezone are not reconciled."}
 
 def main():
     p = argparse.ArgumentParser()
