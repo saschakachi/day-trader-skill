@@ -18,7 +18,7 @@ class DashboardTests(unittest.TestCase):
     def test_demo_result_shows_pass_and_block(self):
         result = dashboard.run()
         page = dashboard.render(result)
-        self.assertIn("AAPL", page)
+        self.assertIn("DEMO", page)
         self.assertIn("PASS", page)
         self.assertIn("BLOCK", page)
         self.assertIn("Deaktiviert", page)
